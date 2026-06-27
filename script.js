@@ -41,6 +41,16 @@ const meteorosFugaces = Array.from({ length: 14 }, () => ({
     velocidad: Math.random() * 10 + 12
 }));
 
+function obtenerCoordenadas(relX, relY) {
+    const ladoCaja = Math.min(W, H * 0.75) * 0.84;
+    const centroX = W / 2;
+    const centroY = H / 2;
+    return {
+        x: centroX + (relX - 0.5) * ladoCaja,
+        y: centroY + (relY - 0.5) * ladoCaja
+    };
+}
+
 function crearChispaDorada(x, y) {
     for (let i = 0; i < 3; i++) {
         chispasTrazo.push({
@@ -70,16 +80,18 @@ function detonarSoldadura(x, y) {
 canvas.addEventListener('pointerdown', (e) => {
     if (pasoActual >= puntos.length) {
         puntos.forEach(p => {
-            if (Math.hypot(e.clientX - p.x * W, e.clientY - p.y * H) < 45) {
+            const pos = obtenerCoordenadas(p.x, p.y);
+            if (Math.hypot(e.clientX - pos.x, e.clientY - pos.y) < 45) {
                 recuerdoActivo = p.recuerdo;
-                detonarSoldadura(p.x * W, p.y * H);
+                detonarSoldadura(pos.x, pos.y);
             }
         });
         return;
     }
 
     const objetivo = puntos[pasoActual];
-    if (Math.hypot(e.clientX - objetivo.x * W, e.clientY - objetivo.y * H) < 48) {
+    const posObj = obtenerCoordenadas(objetivo.x, objetivo.y);
+    if (Math.hypot(e.clientX - posObj.x, e.clientY - posObj.y) < 48) {
         arrastrando = true;
         punteroX = e.clientX; punteroY = e.clientY;
         crearChispaDorada(punteroX, punteroY);
@@ -89,10 +101,14 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
     if (pasoActual >= puntos.length) {
         if (e.pointerType === 'mouse') {
-            const tocado = puntos.find(p => Math.hypot(e.clientX - p.x * W, e.clientY - p.y * H) < 35);
+            const tocado = puntos.find(p => {
+                const pos = obtenerCoordenadas(p.x, p.y);
+                return Math.hypot(e.clientX - pos.x, e.clientY - pos.y) < 35;
+            });
             if (tocado && recuerdoActivo !== tocado.recuerdo) {
                 recuerdoActivo = tocado.recuerdo;
-                crearChispaDorada(tocado.x * W, tocado.y * H);
+                const posToc = obtenerCoordenadas(tocado.x, tocado.y);
+                crearChispaDorada(posToc.x, posToc.y);
             }
         }
         return;
@@ -103,10 +119,11 @@ canvas.addEventListener('pointermove', (e) => {
     crearChispaDorada(punteroX, punteroY);
 
     const meta = puntos[(pasoActual + 1) % puntos.length];
-    if (Math.hypot(punteroX - meta.x * W, punteroY - meta.y * H) < 45) {
+    const posMeta = obtenerCoordenadas(meta.x, meta.y);
+    if (Math.hypot(punteroX - posMeta.x, punteroY - posMeta.y) < 45) {
         pasoActual++;
         arrastrando = false;
-        detonarSoldadura(meta.x * W, meta.y * H);
+        detonarSoldadura(posMeta.x, posMeta.y);
 
         if (pasoActual >= puntos.length && temporizadorCascada < 0) {
             temporizadorCascada = 0;
@@ -131,8 +148,6 @@ function renderizar() {
 
     if (pasoActual >= puntos.length) {
         if (temporizadorCascada >= 0) temporizadorCascada += 0.068;
-        
-        // Candado estricto: Espera a que la ola recorra los 6 índices (0 al 5)
         if (temporizadorCascada > 5.9 && alfaRevelacion < 1) {
             alfaRevelacion = Math.min(1, alfaRevelacion + 0.015);
         }
@@ -155,12 +170,13 @@ function renderizar() {
     ctx.scale(latido, latido);
     ctx.translate(-W / 2, -H / 2);
 
-    // Relleno de gas rubí atado al candado de revelación
     if (pasoActual >= puntos.length && alfaRevelacion > 0) {
         ctx.beginPath();
-        ctx.moveTo(puntos[0].x * W, puntos[0].y * H);
+        const posIni = obtenerCoordenadas(puntos[0].x, puntos[0].y);
+        ctx.moveTo(posIni.x, posIni.y);
         for (let i = 1; i < puntos.length; i++) {
-            ctx.lineTo(puntos[i].x * W, puntos[i].y * H);
+            const pos = obtenerCoordenadas(puntos[i].x, puntos[i].y);
+            ctx.lineTo(pos.x, pos.y);
         }
         ctx.closePath();
 
@@ -174,8 +190,8 @@ function renderizar() {
 
     ctx.globalAlpha = 1;
     for (let i = 0; i < pasoActual; i++) {
-        const pA = puntos[i];
-        const pB = puntos[(i + 1) % puntos.length];
+        const pA = obtenerCoordenadas(puntos[i].x, puntos[i].y);
+        const pB = obtenerCoordenadas(puntos[(i + 1) % puntos.length].x, puntos[(i + 1) % puntos.length].y);
 
         let destelloLinea = 0;
         if (pasoActual >= puntos.length && temporizadorCascada >= 0) {
@@ -191,25 +207,25 @@ function renderizar() {
         ctx.shadowBlur = 18 + (destelloLinea * 25);
 
         ctx.beginPath();
-        ctx.moveTo(pA.x * W, pA.y * H);
-        ctx.lineTo(pB.x * W, pB.y * H);
+        ctx.moveTo(pA.x, pA.y);
+        ctx.lineTo(pB.x, pB.y);
         ctx.stroke();
     }
     ctx.shadowBlur = 0;
 
     if (arrastrando && pasoActual < puntos.length) {
-        const origen = puntos[pasoActual];
+        const origen = obtenerCoordenadas(puntos[pasoActual].x, puntos[pasoActual].y);
         ctx.strokeStyle = '#00ffff';
         ctx.shadowColor = '#00ffff';
         ctx.beginPath();
-        ctx.moveTo(origen.x * W, origen.y * H);
+        ctx.moveTo(origen.x, origen.y);
         ctx.lineTo(punteroX, punteroY);
         ctx.stroke();
     }
     ctx.shadowBlur = 0;
 
     puntos.forEach((p, idx) => {
-        const px = p.x * W, py = p.y * H;
+        const pos = obtenerCoordenadas(p.x, p.y);
 
         let destelloEstrella = 0;
         if (pasoActual >= puntos.length && temporizadorCascada >= 0) {
@@ -223,7 +239,7 @@ function renderizar() {
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(px, py, 12 + Math.sin(tiempo * 4) * 6, 0, Math.PI * 2);
+            ctx.arc(pos.x, pos.y, 12 + Math.sin(tiempo * 4) * 6, 0, Math.PI * 2);
             ctx.stroke();
         }
 
@@ -234,15 +250,21 @@ function renderizar() {
         ctx.shadowColor = '#ffffff';
         ctx.shadowBlur = resplandorDinamico;
         ctx.beginPath();
-        ctx.arc(px, py, radioDinamico, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, radioDinamico, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         if (idx <= pasoActual) {
+            const tamanoEtiqueta = Math.min(15, Math.max(11, Math.floor(W * 0.034)));
+            ctx.font = `italic bold ${tamanoEtiqueta}px Georgia`;
             ctx.fillStyle = '#ffccd8';
-            ctx.font = 'italic bold 15px Georgia';
-            ctx.textAlign = 'center';
-            ctx.fillText(p.texto, px, py - 18);
+
+            let desvX = 0;
+            if (p.x < 0.48) { ctx.textAlign = 'right'; desvX = -12; }
+            else if (p.x > 0.52) { ctx.textAlign = 'left'; desvX = 12; }
+            else { ctx.textAlign = 'center'; desvX = 0; }
+
+            ctx.fillText(p.texto, pos.x + desvX, pos.y - 14);
         }
     });
 
@@ -265,22 +287,23 @@ function renderizar() {
         if (c.alfa <= 0) chispasTrazo.splice(i, 1);
     }
 
-    // Dedicatoria atada estrictamente al candado de revelación
     if (pasoActual >= puntos.length && alfaRevelacion > 0) {
         ctx.save();
         ctx.globalAlpha = alfaRevelacion;
         ctx.textAlign = 'center';
         
+        const tamanoTit = Math.min(28, Math.max(17, Math.floor(W * 0.052)));
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 28px Georgia';
+        ctx.font = `bold ${tamanoTit}px Georgia`;
         ctx.shadowColor = '#ff0066'; ctx.shadowBlur = 25;
         ctx.fillText("Tú eres mi constelación favorita ❤️", W / 2, H * 0.48);
         ctx.shadowBlur = 0;
 
+        const tamanoSub = Math.min(18, Math.max(12, Math.floor(W * 0.038)));
         ctx.fillStyle = '#88ddff';
-        ctx.font = 'italic 18px Georgia';
+        ctx.font = `italic ${tamanoSub}px Georgia`;
         const textoMostrar = recuerdoActivo || "✨ (Toca cualquier estrella para descubrir un recuerdo) ✨";
-        ctx.fillText(textoMostrar, W / 2, H * 0.56, W * 0.85);
+        ctx.fillText(textoMostrar, W / 2, H * 0.56, W * 0.88);
         
         ctx.restore();
     }
